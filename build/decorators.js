@@ -5,12 +5,7 @@ require("reflect-metadata");
 const symbols_1 = require("./symbols");
 function Entity(constructor) {
     const tableName = `${constructor.name.toLocaleLowerCase()}s`;
-    return class extends constructor {
-        constructor(...args) {
-            Reflect.defineMetadata(symbols_1.TABLE_SYMBOL, tableName, constructor.prototype);
-            super(...args);
-        }
-    };
+    Reflect.defineMetadata(symbols_1.TABLE_SYMBOL, tableName, constructor.prototype);
 }
 exports.Entity = Entity;
 function PrimaryKey(options) {

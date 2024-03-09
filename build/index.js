@@ -17,16 +17,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var User_1;
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 require("reflect-metadata");
 const decorators_1 = require("./decorators");
-const orm_1 = require("./orm");
-let User = User_1 = class User {
+const pg_orm_1 = __importDefault(require("./pg_orm"));
+let User = class User {
     constructor(id, name) {
         this.id = id;
         this.name = name;
-        Object.setPrototypeOf(this, User_1.prototype);
     }
 };
 __decorate([
@@ -34,10 +35,10 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "id", void 0);
 __decorate([
-    (0, decorators_1.Column)(),
+    (0, decorators_1.Column)({ type: 'varchar' }),
     __metadata("design:type", String)
 ], User.prototype, "name", void 0);
-User = User_1 = __decorate([
+User = __decorate([
     decorators_1.Entity,
     __metadata("design:paramtypes", [String, String])
 ], User);
@@ -48,8 +49,6 @@ const user = new User('test', 'test');
 console.log(user);
 console.log(user.constructor.name);
 (() => __awaiter(void 0, void 0, void 0, function* () {
-    orm_1.ORM.register([User]);
-    const orm = yield orm_1.ORM.connect();
-    console.log(orm.entities);
-    yield orm.entities.user.find({});
+    const ORM = new pg_orm_1.default();
+    yield ORM.register([User]);
 }))();

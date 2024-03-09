@@ -8,6 +8,6 @@ function getTableName(target) {
 }
 exports.getTableName = getTableName;
 function getColumn(target, propertyKey) {
-    return Reflect.getMetadata(symbols_1.COLUMN_SYMBOL, target, propertyKey);
+    return Object.assign({ name: propertyKey }, Reflect.getMetadata(symbols_1.COLUMN_SYMBOL, target, propertyKey));
 }
 exports.getColumn = getColumn;

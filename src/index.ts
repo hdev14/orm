@@ -1,13 +1,13 @@
 import "reflect-metadata";
 import { Column, Entity, PrimaryKey } from "./decorators";
-import { ORM } from "./orm";
+import PgORM from "./pg_orm";
 
 @Entity
 class User {
   @PrimaryKey()
   id: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name: string;
 
   constructor(id: string, name: string) {
@@ -25,10 +25,7 @@ console.log(user);
 console.log(user.constructor.name);
 
 (async () => {
-  ORM.register([User]);
-  const orm = await ORM.connect();
+  const ORM = new PgORM();
 
-  console.log(orm.entities);
-  await orm.entities.user.find({});
-
+  await ORM.register([User]);
 })();
