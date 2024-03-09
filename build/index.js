@@ -32,7 +32,7 @@ let User = class User {
 };
 __decorate([
     (0, decorators_1.PrimaryKey)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Number)
 ], User.prototype, "id", void 0);
 __decorate([
     (0, decorators_1.Column)({ type: 'varchar' }),
@@ -40,15 +40,18 @@ __decorate([
 ], User.prototype, "name", void 0);
 User = __decorate([
     decorators_1.Entity,
-    __metadata("design:paramtypes", [String, String])
+    __metadata("design:paramtypes", [Number, String])
 ], User);
-const user = new User('test', 'test');
 // console.log(getTableName(user));
 // console.log(getColumn(user, 'id'));
 // console.log(getColumn(user, 'name'));
-console.log(user);
-console.log(user.constructor.name);
 (() => __awaiter(void 0, void 0, void 0, function* () {
     const ORM = new pg_orm_1.default();
     yield ORM.register([User]);
+    // const user = new User(1, 'test');
+    // await ORM.entities.user.create(user);
+    const [user] = yield ORM.entities.user.find({ id: 1 });
+    // await ORM.entities.user.update({ id: user.id }, { name: 'update test' });
+    yield ORM.entities.user.delete({ id: user.id });
+    process.exit(1);
 }))();

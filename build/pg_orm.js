@@ -12,7 +12,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const pg_1 = require("pg");
 require("reflect-metadata");
 const orm_1 = require("./orm");
-const utils_1 = require("./utils");
 class PgORM extends orm_1.ORM {
     constructor() {
         super(...arguments);
@@ -27,27 +26,11 @@ class PgORM extends orm_1.ORM {
                 user: 'admin',
                 password: 'admin',
             });
-            const table_infos = constructors.map((ctor) => {
-                const entity_name = ctor.name.toLocaleLowerCase();
-                const instance = new ctor();
-                const table_name = (0, utils_1.getTableName)(instance);
-                const column_names = Object.keys(instance);
-                const column_options = Object.keys(instance).map((key) => {
-                    return (0, utils_1.getColumn)(instance, key);
-                });
-                return {
-                    entity_name,
-                    instance,
-                    table_name,
-                    column_names,
-                    column_options,
-                };
-            });
+            const table_infos = this.getTableInfos(constructors);
             this.table_scripts = table_infos.map((info) => {
-                console.log(info.column_options);
                 const column_scripts = info.column_options.reduce((acc, column_option, index) => {
                     if (index < info.column_options.length - 1) {
-                        if (column_option.primaryKey) {
+                        if (column_option.primary_key) {
                             acc += ` ${column_option.name} ${column_option.type} PRIMARY KEY,`;
                         }
                         else {
@@ -55,7 +38,7 @@ class PgORM extends orm_1.ORM {
                         }
                     }
                     else {
-                        if (column_option.primaryKey) {
+                        if (column_option.primary_key) {
                             acc += ` ${column_option.name} ${column_option.type} PRIMARY KEY`;
                         }
                         else {
@@ -66,7 +49,6 @@ class PgORM extends orm_1.ORM {
                 }, '');
                 return `CREATE TABLE IF NOT EXISTS ${info.table_name} (${column_scripts})`;
             });
-            console.log(this.table_scripts);
             yield PgORM.client.connect();
             const promises = this.table_scripts.map((table_script) => __awaiter(this, void 0, void 0, function* () {
                 yield PgORM.client.query(table_script);
@@ -77,41 +59,27 @@ class PgORM extends orm_1.ORM {
                     acc[info.entity_name] = {
                         find: (where) => __awaiter(this, void 0, void 0, function* () {
                             if (PgORM.client instanceof pg_1.Client) {
-                                const where_obj = Object.entries(where).reduce((acc, [column, value], index) => {
-                                    const key = `$${index + 1}`;
-                                    if (!acc[key]) {
-                                        acc[key] = {
-                                            column,
-                                            value,
-                                        };
-                                    }
-                                    return acc;
-                                }, {});
-                                const where_keys = Object.keys(where_obj);
-                                const where_values = Object.values(where_obj);
-                                const where_clause = where_keys.reduce((acc, key, index) => {
-                                    if (index < where_keys.length - 1) {
-                                        acc += `${where_obj[key].column} = ${key} AND`;
-                                    }
-                                    else {
-                                        acc += `${where_obj[key].column} = ${key}`;
-                                    }
-                                    return acc;
-                                }, '');
-                                const where_fields = where_values.map(({ value }) => value);
-                                const result = yield PgORM.client.query(`SELECT ${info.column_names.join(', ')} FROM ${info.table_name} WHERE ${where_clause}`, where_fields);
+                                const { clause, values } = this.getWhereValues(where);
+                                const result = yield PgORM.client.query(`SELECT ${info.column_names.join(', ')} FROM ${info.table_name} WHERE ${clause}`, values);
                                 return result.rows;
                             }
                             return [];
                         }),
                         create: (data) => __awaiter(this, void 0, void 0, function* () {
-                            console.log('test');
+                            const values = Object.values(data);
+                            const indexes = Object.keys(values).map((value) => `$${parseInt(value) + 1}`);
+                            yield PgORM.client.query(`INSERT INTO ${info.table_name} (${Object.keys(data).join(',')}) VALUES (${indexes.join(', ')})`, values);
                         }),
                         update: (where, data) => __awaiter(this, void 0, void 0, function* () {
-                            console.log('test');
+                            const { clause, values } = this.getWhereValues(where);
+                            const setters = Object.keys(data).map((key, index) => `"${key}"=$${index + values.length + 1}`).join(',');
+                            const concat_values = values.concat(Object.values(data));
+                            yield PgORM.client.query(`UPDATE ${info.table_name} SET ${setters} WHERE ${clause}`, concat_values);
+                            return;
                         }),
                         delete: (where) => __awaiter(this, void 0, void 0, function* () {
-                            console.log('test');
+                            const { clause, values } = this.getWhereValues(where);
+                            yield PgORM.client.query(`DELETE FROM ${info.table_name} WHERE ${clause}`, values);
                             return true;
                         })
                     };
@@ -119,6 +87,33 @@ class PgORM extends orm_1.ORM {
                 return acc;
             }, {});
         });
+    }
+    getWhereValues(where) {
+        const where_obj = Object.entries(where).reduce((acc, [column, value], index) => {
+            const key = `$${index + 1}`;
+            if (!acc[key]) {
+                acc[key] = {
+                    column,
+                    value,
+                };
+            }
+            return acc;
+        }, {});
+        const keys = Object.keys(where_obj);
+        const values = Object.values(where_obj).map(({ value }) => value);
+        const clause = keys.reduce((acc, key, index) => {
+            if (index < keys.length - 1) {
+                acc += `${where_obj[key].column} = ${key} AND`;
+            }
+            else {
+                acc += `${where_obj[key].column} = ${key}`;
+            }
+            return acc;
+        }, '');
+        return {
+            clause,
+            values,
+        };
     }
     connect() {
         return __awaiter(this, void 0, void 0, function* () {

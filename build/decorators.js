@@ -11,7 +11,7 @@ exports.Entity = Entity;
 function PrimaryKey(options) {
     return Reflect.metadata(symbols_1.COLUMN_SYMBOL, {
         type: options && options.isUUID ? 'uuid' : 'integer',
-        primaryKey: true
+        primary_key: true
     });
 }
 exports.PrimaryKey = PrimaryKey;

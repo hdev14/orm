@@ -1,7 +1,6 @@
 import { Client } from 'pg';
 import 'reflect-metadata';
 import { DBMethods, ORM, Where } from "./orm";
-import { getColumn, getTableName } from './utils';
 
 export default class PgORM extends ORM {
   private static client: Client | any = null;
@@ -16,26 +15,9 @@ export default class PgORM extends ORM {
       password: 'admin',
     });
 
-    const table_infos = constructors.map((ctor) => {
-      const entity_name = ctor.name.toLocaleLowerCase();
-      const instance = new ctor();
-      const table_name = getTableName(instance);
-      const column_names = Object.keys(instance);
-      const column_options = Object.keys(instance).map((key) => {
-        return getColumn(instance, key);
-      });
-
-      return {
-        entity_name,
-        instance,
-        table_name,
-        column_names,
-        column_options,
-      }
-    });
+    const table_infos = this.getTableInfos(constructors);
 
     this.table_scripts = table_infos.map((info) => {
-      console.log(info.column_options);
       const column_scripts = info.column_options.reduce((acc, column_option, index) => {
         if (index < info.column_options.length - 1) {
           if (column_option.primary_key) {
@@ -57,8 +39,6 @@ export default class PgORM extends ORM {
       return `CREATE TABLE IF NOT EXISTS ${info.table_name} (${column_scripts})`;
     });
 
-    console.log(this.table_scripts);
-
     await PgORM.client.connect();
 
     const promises = this.table_scripts.map(async (table_script) => {
@@ -72,37 +52,12 @@ export default class PgORM extends ORM {
         acc[info.entity_name] = {
           find: async (where: Where) => {
             if (PgORM.client instanceof Client) {
-              const where_obj = Object.entries(where).reduce((acc, [column, value], index) => {
-                const key = `$${index + 1}`;
+              const { clause, values } = this.getWhereValues(where);
 
-                if (!acc[key]) {
-                  acc[key] = {
-                    column,
-                    value,
-                  };
-                }
-
-                return acc;
-              }, {} as Record<string, { column: string, value: any }>);
-
-              const where_keys = Object.keys(where_obj);
-              const where_values = Object.values(where_obj);
-
-              const where_clause = where_keys.reduce((acc, key, index) => {
-                if (index < where_keys.length - 1) {
-                  acc += `${where_obj[key].column} = ${key} AND`
-                } else {
-                  acc += `${where_obj[key].column} = ${key}`;
-                }
-
-                return acc;
-              }, '');
-
-              const where_fields = where_values.map(({ value }) => value);
 
               const result = await PgORM.client.query(
-                `SELECT ${info.column_names.join(', ')} FROM ${info.table_name} WHERE ${where_clause}`,
-                where_fields
+                `SELECT ${info.column_names.join(', ')} FROM ${info.table_name} WHERE ${clause}`,
+                values,
               );
 
               return result.rows;
@@ -111,13 +66,24 @@ export default class PgORM extends ORM {
             return [];
           },
           create: async (data: Record<string, any>) => {
-            console.log('test');
+            const values = Object.values(data);
+            const indexes = Object.keys(values).map((value) => `$${parseInt(value) + 1}`);
+
+            await PgORM.client.query(
+              `INSERT INTO ${info.table_name} (${Object.keys(data).join(',')}) VALUES (${indexes.join(', ')})`,
+              values,
+            );
           },
           update: async (where: Where, data: Record<string, any>) => {
-            console.log('test');
+            const { clause, values } = this.getWhereValues(where);
+            const setters = Object.keys(data).map((key, index) => `"${key}"=$${index + values.length + 1}`).join(',');
+            const concat_values = values.concat(Object.values(data));
+            await PgORM.client.query(`UPDATE ${info.table_name} SET ${setters} WHERE ${clause}`, concat_values);
+            return;
           },
           delete: async (where: Where) => {
-            console.log('test');
+            const { clause, values } = this.getWhereValues(where);
+            await PgORM.client.query(`DELETE FROM ${info.table_name} WHERE ${clause}`, values);
             return true;
           }
         }
@@ -125,6 +91,39 @@ export default class PgORM extends ORM {
 
       return acc
     }, {} as Record<string, DBMethods>);
+  }
+
+  private getWhereValues(where: Where) {
+    const where_obj = Object.entries(where).reduce((acc, [column, value], index) => {
+      const key = `$${index + 1}`;
+
+      if (!acc[key]) {
+        acc[key] = {
+          column,
+          value,
+        };
+      }
+
+      return acc;
+    }, {} as Record<string, { column: string, value: any }>);
+
+    const keys = Object.keys(where_obj);
+    const values = Object.values(where_obj).map(({ value }) => value);
+
+    const clause = keys.reduce((acc, key, index) => {
+      if (index < keys.length - 1) {
+        acc += `${where_obj[key].column} = ${key} AND`;
+      } else {
+        acc += `${where_obj[key].column} = ${key}`;
+      }
+
+      return acc;
+    }, '');
+
+    return {
+      clause,
+      values,
+    }
   }
 
   async connect(): Promise<ORM> {
