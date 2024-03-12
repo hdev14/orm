@@ -1,4 +1,4 @@
-import { getColumn, getTableName } from "./utils";
+import { ColumnOptions, getColumn, getTableName } from "./utils";
 
 export type Where = {
   id?: string | number;
@@ -12,17 +12,38 @@ export interface DBMethods {
   delete(where: Where): Promise<boolean>;
 }
 
+export type DbConfig = {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+};
+
+export type ORMOptions = {
+  db_config: DbConfig;
+  migrate?: boolean;
+  entities: any[];
+};
+
+export type EntityInfo = {
+  entity_name: string;
+  table_name: string;
+  column_names: string[];
+  column_options: ColumnOptions[];
+};
+
 export abstract class ORM {
   entities: Record<string, DBMethods> = {};
 
-  abstract register(constructors: any[]): Promise<void>;
+  abstract configure(options: ORMOptions): Promise<void>;
 
   abstract connect(): Promise<ORM>;
 
   abstract disconnect(): Promise<void>;
 
-  protected getTableInfos(constructors: any[]) {
-    return constructors.map((ctor) => {
+  protected getEntityInfos(entities: any[]): EntityInfo[] {
+    return entities.map((ctor) => {
       const entity_name = ctor.name.toLocaleLowerCase();
       const instance = new ctor();
       const table_name = getTableName(instance);

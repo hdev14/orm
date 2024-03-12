@@ -25,7 +25,7 @@ class User {
 (async () => {
   const ORM = new PgORM();
 
-  await ORM.register([User]);
+  await ORM.configure([User]);
 
   // const user = new User(1, 'test');
 
